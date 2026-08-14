@@ -1,18 +1,20 @@
 /**
- * CapCut Clone – Browser Video Editor (Prototype)
- * A lightweight web-based video editor inspired by CapCut.
+ * CapCut Clone v2 – Browser Video Editor
+ * Multi-clip sequential playback, better timeline, more filters & controls.
  */
 
 class CapCutClone {
   constructor() {
-    this.media = [];           // { id, file, url, type, name, duration, element }
-    this.clips = [];           // { id, mediaId, start, duration, offset }
-    this.textOverlays = [];    // { id, text, color, size, x, y }
-    this.currentMediaId = null;
+    this.media = [];
+    this.clips = [];          // ordered timeline clips
+    this.textOverlays = [];
+    this.currentClipIndex = -1;
     this.selectedClipId = null;
     this.isPlaying = false;
+    this.isMuted = false;
     this.currentFilter = 'none';
-    this.pixelsPerSecond = 40; // timeline scale
+    this.pixelsPerSecond = 50;
+    this.globalTime = 0;      // position across whole timeline
 
     this.initElements();
     this.bindEvents();
@@ -32,6 +34,7 @@ class CapCutClone {
     this.timeDisplay = document.getElementById('time-display');
     this.noMedia = document.getElementById('no-media');
     this.textList = document.getElementById('text-list');
+    this.ruler = document.getElementById('ruler');
   }
 
   bindEvents() {
@@ -42,9 +45,7 @@ class CapCutClone {
       e.preventDefault();
       this.uploadZone.classList.add('dragover');
     });
-    this.uploadZone.addEventListener('dragleave', () => {
-      this.uploadZone.classList.remove('dragover');
-    });
+    this.uploadZone.addEventListener('dragleave', () => this.uploadZone.classList.remove('dragover'));
     this.uploadZone.addEventListener('drop', (e) => {
       e.preventDefault();
       this.uploadZone.classList.remove('dragover');
@@ -63,14 +64,17 @@ class CapCutClone {
 
     // Playback
     document.getElementById('btn-play').addEventListener('click', () => this.togglePlay());
+    document.getElementById('btn-prev').addEventListener('click', () => this.prevClip());
+    document.getElementById('btn-next').addEventListener('click', () => this.nextClip());
+    document.getElementById('btn-mute').addEventListener('click', () => this.toggleMute());
+
     this.video.addEventListener('timeupdate', () => this.onTimeUpdate());
-    this.video.addEventListener('ended', () => {
-      this.isPlaying = false;
-      document.getElementById('btn-play').textContent = '▶';
-    });
+    this.video.addEventListener('ended', () => this.onClipEnded());
+
     this.seekBar.addEventListener('input', () => {
-      if (this.video.duration) {
-        this.video.currentTime = (this.seekBar.value / 100) * this.video.duration;
+      const total = this.getTotalDuration();
+      if (total > 0) {
+        this.seekToGlobal((this.seekBar.value / 1000) * total);
       }
     });
 
@@ -82,6 +86,10 @@ class CapCutClone {
     });
     document.getElementById('volume-slider').addEventListener('input', (e) => {
       this.video.volume = parseFloat(e.target.value);
+      if (this.video.volume > 0) {
+        this.isMuted = false;
+        document.getElementById('btn-mute').textContent = '🔊';
+      }
     });
 
     // Filters
@@ -96,28 +104,39 @@ class CapCutClone {
 
     // Text
     document.getElementById('btn-add-text').addEventListener('click', () => this.addTextOverlay());
-
-    // Timeline actions
-    document.getElementById('btn-delete-clip').addEventListener('click', () => this.deleteSelectedClip());
-    document.getElementById('btn-split').addEventListener('click', () => this.splitAtPlayhead());
-
-    // Export
-    document.getElementById('btn-export').addEventListener('click', () => this.exportVideo());
-
-    // Fullscreen
-    document.getElementById('btn-fullscreen').addEventListener('click', () => {
-      const container = document.getElementById('preview-container');
-      if (!document.fullscreenElement) {
-        container.requestFullscreen?.();
-      } else {
-        document.exitFullscreen?.();
-      }
+    document.getElementById('text-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.addTextOverlay();
     });
 
-    // Resize canvas with video
+    // Timeline
+    document.getElementById('btn-delete-clip').addEventListener('click', () => this.deleteSelectedClip());
+    document.getElementById('btn-clear-timeline').addEventListener('click', () => this.clearTimeline());
+    document.getElementById('btn-split').addEventListener('click', () => this.splitAtPlayhead());
+    document.getElementById('btn-zoom-in').addEventListener('click', () => {
+      this.pixelsPerSecond = Math.min(120, this.pixelsPerSecond + 10);
+      this.renderTimeline();
+    });
+    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+      this.pixelsPerSecond = Math.max(20, this.pixelsPerSecond - 10);
+      this.renderTimeline();
+    });
+
+    // Project
+    document.getElementById('btn-new').addEventListener('click', () => {
+      if (confirm('Clear project and start over?')) this.resetProject();
+    });
+    document.getElementById('btn-export').addEventListener('click', () => this.exportVideo());
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+      const c = document.getElementById('preview-container');
+      if (!document.fullscreenElement) c.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    });
+
     this.video.addEventListener('loadedmetadata', () => this.resizeCanvas());
     window.addEventListener('resize', () => this.resizeCanvas());
   }
+
+  // ─── Media handling ───────────────────────────────────────────────
 
   async handleFiles(fileList) {
     for (const file of Array.from(fileList)) {
@@ -126,30 +145,17 @@ class CapCutClone {
       const id = crypto.randomUUID();
       const url = URL.createObjectURL(file);
       const isVideo = file.type.startsWith('video/');
+      let duration = 5;
+      if (isVideo) duration = await this.getVideoDuration(url);
 
-      let duration = 5; // default for images
-      if (isVideo) {
-        duration = await this.getVideoDuration(url);
-      }
-
-      const media = {
-        id,
-        file,
-        url,
-        type: isVideo ? 'video' : 'image',
-        name: file.name,
-        duration,
-      };
-
+      const media = { id, file, url, type: isVideo ? 'video' : 'image', name: file.name, duration };
       this.media.push(media);
 
-      // Auto-add first video to timeline
-      if (isVideo && this.clips.length === 0) {
-        this.addClip(media);
-        this.loadMedia(media.id);
-      }
+      // Auto-add to timeline
+      this.addClip(media);
     }
     this.renderMediaList();
+    this.updateStats();
   }
 
   getVideoDuration(url) {
@@ -158,7 +164,6 @@ class CapCutClone {
       v.preload = 'metadata';
       v.onloadedmetadata = () => {
         resolve(v.duration || 5);
-        URL.revokeObjectURL(v.src);
       };
       v.onerror = () => resolve(5);
       v.src = url;
@@ -167,94 +172,207 @@ class CapCutClone {
 
   addClip(media) {
     const id = crypto.randomUUID();
-    const start = this.clips.reduce((sum, c) => sum + c.duration, 0);
+    const start = this.getTotalDuration();
     this.clips.push({
       id,
       mediaId: media.id,
       start,
       duration: media.duration,
-      offset: 0, // trim start
+      offset: 0,
     });
     this.selectedClipId = id;
+
+    // If first clip, load it
+    if (this.clips.length === 1) {
+      this.loadClip(0);
+    }
     this.renderTimeline();
+    this.updateStats();
   }
 
-  loadMedia(mediaId) {
-    const media = this.media.find(m => m.id === mediaId);
+  // ─── Playback engine (multi-clip) ─────────────────────────────────
+
+  getTotalDuration() {
+    return this.clips.reduce((s, c) => s + c.duration, 0);
+  }
+
+  getClipAtTime(t) {
+    let acc = 0;
+    for (let i = 0; i < this.clips.length; i++) {
+      const c = this.clips[i];
+      if (t < acc + c.duration) {
+        return { index: i, localTime: t - acc, clip: c };
+      }
+      acc += c.duration;
+    }
+    if (this.clips.length) {
+      const last = this.clips.length - 1;
+      return { index: last, localTime: this.clips[last].duration, clip: this.clips[last] };
+    }
+    return null;
+  }
+
+  loadClip(index, localTime = 0, autoplay = false) {
+    if (index < 0 || index >= this.clips.length) return;
+    const clip = this.clips[index];
+    const media = this.media.find(m => m.id === clip.mediaId);
     if (!media) return;
 
-    this.currentMediaId = mediaId;
+    this.currentClipIndex = index;
+    this.selectedClipId = clip.id;
     this.noMedia.style.display = 'none';
 
     if (media.type === 'video') {
-      this.video.src = media.url;
+      const needReload = this.video.src !== media.url;
+      if (needReload) {
+        this.video.src = media.url;
+        this.video.load();
+        this.video.onloadeddata = () => {
+          this.video.currentTime = localTime + (clip.offset || 0);
+          this.applyFilter();
+          this.resizeCanvas();
+          if (autoplay || this.isPlaying) {
+            this.video.play().catch(() => {});
+          }
+        };
+      } else {
+        this.video.currentTime = localTime + (clip.offset || 0);
+        this.applyFilter();
+        if (autoplay || this.isPlaying) this.video.play().catch(() => {});
+      }
       this.video.style.display = 'block';
-      this.video.load();
     } else {
-      // For images we could show on canvas, but keep simple
       this.video.style.display = 'none';
     }
 
     this.renderMediaList();
-    this.applyFilter();
+    this.renderTimeline();
+  }
+
+  seekToGlobal(t) {
+    const total = this.getTotalDuration();
+    t = Math.max(0, Math.min(t, total));
+    this.globalTime = t;
+    const info = this.getClipAtTime(t);
+    if (!info) return;
+
+    if (info.index !== this.currentClipIndex) {
+      this.loadClip(info.index, info.localTime, this.isPlaying);
+    } else {
+      this.video.currentTime = info.localTime + (info.clip.offset || 0);
+    }
+    this.updateTimeUI();
   }
 
   togglePlay() {
-    if (!this.video.src) return;
-    if (this.video.paused) {
-      this.video.play();
-      this.isPlaying = true;
-      document.getElementById('btn-play').textContent = '⏸';
-      this.drawLoop();
-    } else {
+    if (!this.clips.length) return;
+
+    if (this.isPlaying) {
       this.video.pause();
       this.isPlaying = false;
       document.getElementById('btn-play').textContent = '▶';
+    } else {
+      if (this.currentClipIndex < 0) this.loadClip(0, 0, true);
+      else {
+        this.video.play().catch(() => {});
+      }
+      this.isPlaying = true;
+      document.getElementById('btn-play').textContent = '⏸';
+      this.drawLoop();
     }
   }
 
-  onTimeUpdate() {
-    if (!this.video.duration) return;
-    const pct = (this.video.currentTime / this.video.duration) * 100;
-    this.seekBar.value = pct;
-    this.timeDisplay.textContent = `${this.formatTime(this.video.currentTime)} / ${this.formatTime(this.video.duration)}`;
+  onClipEnded() {
+    if (this.currentClipIndex < this.clips.length - 1) {
+      this.loadClip(this.currentClipIndex + 1, 0, true);
+    } else {
+      this.isPlaying = false;
+      document.getElementById('btn-play').textContent = '▶';
+      // Stay at end
+    }
+  }
 
-    // Move playhead
-    const totalDuration = this.clips.reduce((s, c) => s + c.duration, 0) || this.video.duration;
-    const x = 40 + (this.video.currentTime / totalDuration) * (this.clipsContainer.scrollWidth || 800);
+  prevClip() {
+    if (this.currentClipIndex > 0) {
+      this.loadClip(this.currentClipIndex - 1, 0, this.isPlaying);
+    } else {
+      this.seekToGlobal(0);
+    }
+  }
+
+  nextClip() {
+    if (this.currentClipIndex < this.clips.length - 1) {
+      this.loadClip(this.currentClipIndex + 1, 0, this.isPlaying);
+    }
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    this.video.muted = this.isMuted;
+    document.getElementById('btn-mute').textContent = this.isMuted ? '🔇' : '🔊';
+  }
+
+  onTimeUpdate() {
+    if (this.currentClipIndex < 0 || !this.clips[this.currentClipIndex]) return;
+
+    const clip = this.clips[this.currentClipIndex];
+    let acc = 0;
+    for (let i = 0; i < this.currentClipIndex; i++) acc += this.clips[i].duration;
+    this.globalTime = acc + (this.video.currentTime - (clip.offset || 0));
+
+    this.updateTimeUI();
+    this.drawOverlays();
+  }
+
+  updateTimeUI() {
+    const total = this.getTotalDuration();
+    this.timeDisplay.textContent = `${this.formatTime(this.globalTime)} / ${this.formatTime(total)}`;
+    if (total > 0) {
+      this.seekBar.value = (this.globalTime / total) * 1000;
+    }
+
+    // Playhead position
+    const x = 40 + this.globalTime * this.pixelsPerSecond;
     this.playhead.style.left = `${x}px`;
   }
 
   formatTime(s) {
+    s = Math.max(0, s || 0);
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   }
 
+  // ─── Filters & overlays ───────────────────────────────────────────
+
   applyFilter() {
-    const filters = {
+    const map = {
       none: 'none',
       grayscale: 'grayscale(100%)',
       sepia: 'sepia(80%)',
       contrast: 'contrast(140%)',
       brightness: 'brightness(130%)',
-      blur: 'blur(2px)',
+      saturate: 'saturate(180%)',
+      blur: 'blur(1.5px)',
+      invert: 'invert(100%)',
     };
-    this.video.style.filter = filters[this.currentFilter] || 'none';
+    this.video.style.filter = map[this.currentFilter] || 'none';
   }
 
   addTextOverlay() {
     const text = document.getElementById('text-input').value.trim();
     if (!text) return;
 
-    const id = crypto.randomUUID();
+    const pos = document.getElementById('text-pos').value;
+    const yMap = { top: 0.15, center: 0.5, bottom: 0.85 };
+
     this.textOverlays.push({
-      id,
+      id: crypto.randomUUID(),
       text,
       color: document.getElementById('text-color').value,
       size: parseInt(document.getElementById('text-size').value, 10),
       x: 0.5,
-      y: 0.8,
+      y: yMap[pos] || 0.85,
     });
     document.getElementById('text-input').value = '';
     this.renderTextList();
@@ -282,13 +400,19 @@ class CapCutClone {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.textOverlays.forEach(t => {
-      this.ctx.font = `bold ${t.size * (this.canvas.width / 640)}px Inter, sans-serif`;
+      const scale = this.canvas.width / 640;
+      this.ctx.font = `bold ${t.size * scale}px Inter, sans-serif`;
       this.ctx.fillStyle = t.color;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.shadowColor = 'rgba(0,0,0,0.7)';
-      this.ctx.shadowBlur = 4;
-      this.ctx.fillText(t.text, this.canvas.width * t.x, this.canvas.height * t.y);
+      this.ctx.shadowColor = 'rgba(0,0,0,0.75)';
+      this.ctx.shadowBlur = 6;
+      this.ctx.lineWidth = 3;
+      this.ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      const x = this.canvas.width * t.x;
+      const y = this.canvas.height * t.y;
+      this.ctx.strokeText(t.text, x, y);
+      this.ctx.fillText(t.text, x, y);
       this.ctx.shadowBlur = 0;
     });
   }
@@ -299,83 +423,152 @@ class CapCutClone {
     requestAnimationFrame(() => this.drawLoop());
   }
 
+  // ─── Timeline actions ─────────────────────────────────────────────
+
   deleteSelectedClip() {
     if (!this.selectedClipId) return;
-    this.clips = this.clips.filter(c => c.id !== this.selectedClipId);
+    const idx = this.clips.findIndex(c => c.id === this.selectedClipId);
+    if (idx === -1) return;
+
+    this.clips.splice(idx, 1);
     this.selectedClipId = null;
+
     // Recompute starts
     let t = 0;
-    this.clips.forEach(c => {
-      c.start = t;
-      t += c.duration;
-    });
+    this.clips.forEach(c => { c.start = t; t += c.duration; });
+
+    if (this.clips.length === 0) {
+      this.currentClipIndex = -1;
+      this.video.removeAttribute('src');
+      this.video.load();
+      this.noMedia.style.display = 'block';
+      this.isPlaying = false;
+      document.getElementById('btn-play').textContent = '▶';
+    } else {
+      const newIdx = Math.min(idx, this.clips.length - 1);
+      this.loadClip(newIdx, 0, this.isPlaying);
+    }
     this.renderTimeline();
+    this.updateStats();
+  }
+
+  clearTimeline() {
+    if (!this.clips.length) return;
+    if (!confirm('Clear all clips from timeline?')) return;
+    this.clips = [];
+    this.currentClipIndex = -1;
+    this.selectedClipId = null;
+    this.video.removeAttribute('src');
+    this.video.load();
+    this.noMedia.style.display = 'block';
+    this.isPlaying = false;
+    document.getElementById('btn-play').textContent = '▶';
+    this.renderTimeline();
+    this.updateStats();
   }
 
   splitAtPlayhead() {
-    // Simple prototype: just log – full split needs more timeline logic
-    alert('Split is a placeholder in this prototype. Full multi-clip timeline editing requires more complex state management.');
-  }
-
-  async exportVideo() {
-    if (!this.video.src) {
-      alert('No video loaded to export.');
+    if (this.currentClipIndex < 0) return;
+    const clip = this.clips[this.currentClipIndex];
+    const local = this.video.currentTime - (clip.offset || 0);
+    if (local < 0.3 || local > clip.duration - 0.3) {
+      alert('Move playhead further into the clip to split.');
       return;
     }
 
-    // Simple export: record the playing video + canvas using MediaRecorder
-    // Note: This is a basic approach. Real export needs FFmpeg.wasm or server-side processing.
-    try {
-      const stream = this.video.captureStream ? this.video.captureStream() : null;
-      if (!stream) {
-        // Fallback: just download the original file
-        const media = this.media.find(m => m.id === this.currentMediaId);
-        if (media) {
-          const a = document.createElement('a');
-          a.href = media.url;
-          a.download = 'capcut-clone-export-' + media.name;
-          a.click();
-          return;
-        }
-      }
+    const media = this.media.find(m => m.id === clip.mediaId);
+    if (!media) return;
 
-      // Prefer downloading original for reliability in this prototype
-      const media = this.media.find(m => m.id === this.currentMediaId);
-      if (media) {
-        const a = document.createElement('a');
-        a.href = media.url;
-        a.download = 'exported-' + media.name;
-        a.click();
-        alert('Exported original media (prototype). For true rendered export with overlays/filters, integrate FFmpeg.wasm.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Export failed. Try downloading the original media from the Media panel.');
+    // Shorten current
+    const remaining = clip.duration - local;
+    clip.duration = local;
+
+    // Insert new clip after
+    const newClip = {
+      id: crypto.randomUUID(),
+      mediaId: clip.mediaId,
+      start: clip.start + local,
+      duration: remaining,
+      offset: (clip.offset || 0) + local,
+    };
+    this.clips.splice(this.currentClipIndex + 1, 0, newClip);
+
+    // Recompute starts
+    let t = 0;
+    this.clips.forEach(c => { c.start = t; t += c.duration; });
+
+    this.selectedClipId = newClip.id;
+    this.renderTimeline();
+    this.updateStats();
+  }
+
+  resetProject() {
+    this.media.forEach(m => URL.revokeObjectURL(m.url));
+    this.media = [];
+    this.clips = [];
+    this.textOverlays = [];
+    this.currentClipIndex = -1;
+    this.selectedClipId = null;
+    this.isPlaying = false;
+    this.globalTime = 0;
+    this.video.removeAttribute('src');
+    this.video.load();
+    this.noMedia.style.display = 'block';
+    document.getElementById('btn-play').textContent = '▶';
+    this.render();
+    this.updateStats();
+  }
+
+  exportVideo() {
+    if (!this.clips.length) {
+      alert('Nothing to export. Add clips first.');
+      return;
     }
+    // Prototype: download the currently loaded media
+    const clip = this.clips[this.currentClipIndex >= 0 ? this.currentClipIndex : 0];
+    const media = this.media.find(m => m.id === clip.mediaId);
+    if (media) {
+      const a = document.createElement('a');
+      a.href = media.url;
+      a.download = 'capcut-clone-' + media.name;
+      a.click();
+      alert('Downloaded source media.\n\nNote: Filters & text are preview-only in this version.\nFull baked export requires FFmpeg.wasm (future update).');
+    }
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────
+
+  updateStats() {
+    document.getElementById('clip-count').textContent = this.clips.length;
+    document.getElementById('total-duration').textContent = this.formatTime(this.getTotalDuration());
   }
 
   renderMediaList() {
     this.mediaList.innerHTML = '';
     this.media.forEach(m => {
+      const onTimeline = this.clips.some(c => c.mediaId === m.id);
       const el = document.createElement('div');
-      el.className = 'media-item' + (m.id === this.currentMediaId ? ' active' : '');
+      el.className = 'media-item' + (this.clips[this.currentClipIndex]?.mediaId === m.id ? ' active' : '');
       el.innerHTML = `
-        <div class="media-thumb" style="background:#111;display:flex;align-items:center;justify-content:center;font-size:10px;color:#555">
-          ${m.type === 'video' ? '▶' : '🖼'}
-        </div>
+        <div class="media-thumb">${m.type === 'video' ? '▶' : '🖼'}</div>
         <div class="media-info">
           <div class="media-name">${m.name}</div>
-          <div class="media-meta">${m.type} · ${m.duration.toFixed(1)}s</div>
+          <div class="media-meta">${m.type} · ${m.duration.toFixed(1)}s ${onTimeline ? '· on timeline' : ''}</div>
+        </div>
+        <div class="media-actions">
+          <button title="Add to timeline" data-add="${m.id}">+</button>
         </div>
       `;
-      el.addEventListener('click', () => {
-        this.loadMedia(m.id);
-        // Also ensure it's on timeline
-        if (!this.clips.find(c => c.mediaId === m.id)) {
-          this.addClip(m);
-        }
+      el.querySelector('[data-add]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.addClip(m);
       });
-      // Double-click or button to add to timeline could be added
+      el.addEventListener('dblclick', () => this.addClip(m));
+      el.addEventListener('click', () => {
+        // Load if already on timeline
+        const idx = this.clips.findIndex(c => c.mediaId === m.id);
+        if (idx >= 0) this.loadClip(idx, 0, false);
+      });
       this.mediaList.appendChild(el);
     });
   }
@@ -385,41 +578,56 @@ class CapCutClone {
     this.textOverlays.forEach(t => {
       const el = document.createElement('div');
       el.className = 'text-item';
-      el.innerHTML = `
-        <span style="color:${t.color}">${t.text}</span>
-        <button data-id="${t.id}">✕</button>
-      `;
+      el.innerHTML = `<span style="color:${t.color}">${t.text}</span><button>✕</button>`;
       el.querySelector('button').addEventListener('click', () => this.removeTextOverlay(t.id));
       this.textList.appendChild(el);
     });
   }
 
   renderTimeline() {
+    // Ruler
+    this.ruler.innerHTML = '';
+    const total = Math.max(this.getTotalDuration(), 10);
+    const step = total > 60 ? 10 : total > 20 ? 5 : 2;
+    for (let t = 0; t <= total + step; t += step) {
+      const mark = document.createElement('div');
+      mark.className = 'ruler-mark';
+      mark.style.left = `${t * this.pixelsPerSecond}px`;
+      mark.textContent = this.formatTime(t);
+      this.ruler.appendChild(mark);
+    }
+
+    // Clips
     this.clipsContainer.innerHTML = '';
-    this.clips.forEach(clip => {
+    this.clipsContainer.style.minWidth = `${Math.max(900, total * this.pixelsPerSecond + 100)}px`;
+
+    this.clips.forEach((clip, i) => {
       const media = this.media.find(m => m.id === clip.mediaId);
       const el = document.createElement('div');
-      el.className = 'clip' + (clip.id === this.selectedClipId ? ' selected' : '');
+      el.className = 'clip'
+        + (clip.id === this.selectedClipId ? ' selected' : '')
+        + (i === this.currentClipIndex ? ' playing' : '');
       el.style.left = `${clip.start * this.pixelsPerSecond}px`;
-      el.style.width = `${Math.max(clip.duration * this.pixelsPerSecond, 40)}px`;
+      el.style.width = `${Math.max(clip.duration * this.pixelsPerSecond, 36)}px`;
       el.innerHTML = `<span class="clip-name">${media ? media.name : 'Clip'}</span>`;
       el.addEventListener('click', () => {
         this.selectedClipId = clip.id;
-        this.loadMedia(clip.mediaId);
-        this.renderTimeline();
+        this.loadClip(i, 0, false);
       });
       this.clipsContainer.appendChild(el);
     });
+
+    this.updateTimeUI();
   }
 
   render() {
     this.renderMediaList();
     this.renderTimeline();
     this.renderTextList();
+    this.updateStats();
   }
 }
 
-// Boot
 document.addEventListener('DOMContentLoaded', () => {
   window.editor = new CapCutClone();
 });
