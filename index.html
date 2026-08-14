@@ -18,10 +18,14 @@
           <path d="M10 9l5 3-5 3V9z" fill="#00f5a0"/>
         </svg>
         <span>CapCut Clone</span>
-        <span class="badge">v3</span>
+        <span class="badge">v4</span>
       </div>
       <div class="topbar-actions">
-        <span id="shortcut-hint" class="hint-bar">Space play · Del delete · ← → seek · [ ] move clip</span>
+        <span id="shortcut-hint" class="hint-bar">Space · Ctrl+Z undo · Ctrl+Y redo · drag edges trim · pinch zoom</span>
+        <button id="btn-undo" class="btn ghost" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="btn-redo" class="btn ghost" title="Redo (Ctrl+Y)">Redo</button>
+        <button id="btn-save" class="btn ghost" title="Save project">Save</button>
+        <button id="btn-load" class="btn ghost" title="Load project">Load</button>
         <button id="btn-new" class="btn ghost" title="New project">New</button>
         <button id="btn-export" class="btn primary">Export</button>
       </div>
@@ -103,8 +107,16 @@
             </select>
           </div>
           <div class="tool-group">
-            <label>Playback Speed <span id="speed-value">1.0x</span></label>
+            <label>Global Speed <span id="speed-value">1.0x</span></label>
             <input type="range" id="speed-slider" min="0.25" max="2" step="0.25" value="1" />
+          </div>
+          <div class="tool-group">
+            <label>Selected Clip Speed <span id="clip-speed-value">1.0x</span></label>
+            <input type="range" id="clip-speed-slider" min="0.25" max="2" step="0.25" value="1" />
+          </div>
+          <div class="tool-group">
+            <label class="check-label"><input type="checkbox" id="snap-toggle" checked /> Snap to edges</label>
+            <label class="check-label"><input type="checkbox" id="ripple-toggle" /> Ripple delete</label>
           </div>
           <div class="tool-group">
             <label>Volume</label>
@@ -123,7 +135,7 @@
           <div id="no-media" class="no-media">
             <div class="no-media-icon">▶</div>
             <p>Upload a video to start editing</p>
-            <span class="hint">Supports multiple clips · keyboard shortcuts enabled</span>
+            <span class="hint">v4 Advanced · undo · trim · export</span>
           </div>
         </div>
         <div class="playback-controls">
@@ -164,7 +176,7 @@
           </div>
         </div>
         <div class="info-box">
-          <p><strong>v3 features:</strong> Pinch-zoom timeline, touch + mouse drag reorder, keyboard shortcuts, transitions, text presets.</p>
+          <p><strong>v4 Advanced:</strong> Undo/redo, trim handles, snap, per-clip speed, markers, save/load, MediaRecorder export.</p>
         </div>
       </aside>
     </div>
@@ -174,10 +186,12 @@
         <button id="btn-split" class="icon-btn" title="Split at playhead (S)">✂</button>
         <button id="btn-delete-clip" class="icon-btn" title="Delete selected (Del)">🗑</button>
         <button id="btn-clear-timeline" class="icon-btn" title="Clear timeline">⊘</button>
-        <span class="timeline-label">Timeline · drag clips to reorder · pinch to zoom · tap to select</span>
+        <button id="btn-marker" class="icon-btn" title="Add marker at playhead">◆</button>
+        <span class="timeline-label">Timeline · drag to reorder · drag edges to trim · pinch zoom</span>
+        <span id="zoom-level" class="zoom-level">50 px/s</span>
         <div class="zoom-controls">
-          <button id="btn-zoom-out" class="icon-btn" title="Zoom out (− or pinch)">−</button>
-          <button id="btn-zoom-in" class="icon-btn" title="Zoom in (+ or pinch)">+</button>
+          <button id="btn-zoom-out" class="icon-btn" title="Zoom out">−</button>
+          <button id="btn-zoom-in" class="icon-btn" title="Zoom in">+</button>
         </div>
       </div>
       <div class="timeline" id="timeline">
