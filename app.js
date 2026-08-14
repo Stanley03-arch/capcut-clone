@@ -1,20 +1,22 @@
 /**
- * CapCut Clone v2 – Browser Video Editor
- * Multi-clip sequential playback, better timeline, more filters & controls.
+ * CapCut Clone v3 – Browser Video Editor
+ * Multi-clip, keyboard shortcuts, transitions, thumbnails, text presets, clip reorder.
  */
 
 class CapCutClone {
   constructor() {
     this.media = [];
-    this.clips = [];          // ordered timeline clips
+    this.clips = [];
     this.textOverlays = [];
     this.currentClipIndex = -1;
     this.selectedClipId = null;
     this.isPlaying = false;
     this.isMuted = false;
     this.currentFilter = 'none';
+    this.transition = 'none';
     this.pixelsPerSecond = 50;
-    this.globalTime = 0;      // position across whole timeline
+    this.globalTime = 0;
+    this.isTransitioning = false;
 
     this.initElements();
     this.bindEvents();
@@ -35,10 +37,11 @@ class CapCutClone {
     this.noMedia = document.getElementById('no-media');
     this.textList = document.getElementById('text-list');
     this.ruler = document.getElementById('ruler');
+    this.fadeOverlay = document.getElementById('fade-overlay');
+    this.aspectFrame = document.getElementById('aspect-frame');
   }
 
   bindEvents() {
-    // Upload
     this.uploadZone.addEventListener('click', () => this.fileInput.click());
     this.fileInput.addEventListener('change', (e) => this.handleFiles(e.target.files));
     this.uploadZone.addEventListener('dragover', (e) => {
@@ -52,7 +55,6 @@ class CapCutClone {
       this.handleFiles(e.dataTransfer.files);
     });
 
-    // Tabs
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -62,7 +64,6 @@ class CapCutClone {
       });
     });
 
-    // Playback
     document.getElementById('btn-play').addEventListener('click', () => this.togglePlay());
     document.getElementById('btn-prev').addEventListener('click', () => this.prevClip());
     document.getElementById('btn-next').addEventListener('click', () => this.nextClip());
@@ -73,12 +74,9 @@ class CapCutClone {
 
     this.seekBar.addEventListener('input', () => {
       const total = this.getTotalDuration();
-      if (total > 0) {
-        this.seekToGlobal((this.seekBar.value / 1000) * total);
-      }
+      if (total > 0) this.seekToGlobal((this.seekBar.value / 1000) * total);
     });
 
-    // Speed & Volume
     document.getElementById('speed-slider').addEventListener('input', (e) => {
       const speed = parseFloat(e.target.value);
       this.video.playbackRate = speed;
@@ -92,7 +90,6 @@ class CapCutClone {
       }
     });
 
-    // Filters
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -102,13 +99,18 @@ class CapCutClone {
       });
     });
 
-    // Text
+    document.getElementById('transition-select').addEventListener('change', (e) => {
+      this.transition = e.target.value;
+    });
+
     document.getElementById('btn-add-text').addEventListener('click', () => this.addTextOverlay());
     document.getElementById('text-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.addTextOverlay();
     });
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.applyTextPreset(btn.dataset.preset));
+    });
 
-    // Timeline
     document.getElementById('btn-delete-clip').addEventListener('click', () => this.deleteSelectedClip());
     document.getElementById('btn-clear-timeline').addEventListener('click', () => this.clearTimeline());
     document.getElementById('btn-split').addEventListener('click', () => this.splitAtPlayhead());
@@ -120,8 +122,15 @@ class CapCutClone {
       this.pixelsPerSecond = Math.max(20, this.pixelsPerSecond - 10);
       this.renderTimeline();
     });
+    document.getElementById('btn-move-left').addEventListener('click', () => this.moveClip(-1));
+    document.getElementById('btn-move-right').addEventListener('click', () => this.moveClip(1));
 
-    // Project
+    document.getElementById('aspect').addEventListener('change', (e) => {
+      this.aspectFrame.dataset.aspect = e.target.value;
+      this.resizeCanvas();
+    });
+    this.aspectFrame.dataset.aspect = '16:9';
+
     document.getElementById('btn-new').addEventListener('click', () => {
       if (confirm('Clear project and start over?')) this.resetProject();
     });
@@ -134,9 +143,56 @@ class CapCutClone {
 
     this.video.addEventListener('loadedmetadata', () => this.resizeCanvas());
     window.addEventListener('resize', () => this.resizeCanvas());
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
   }
 
-  // ─── Media handling ───────────────────────────────────────────────
+  onKeyDown(e) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    switch (e.code) {
+      case 'Space':
+        e.preventDefault();
+        this.togglePlay();
+        break;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        this.deleteSelectedClip();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        this.seekToGlobal(this.globalTime - (e.shiftKey ? 5 : 1));
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        this.seekToGlobal(this.globalTime + (e.shiftKey ? 5 : 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        this.prevClip();
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        this.nextClip();
+        break;
+      case 'KeyM':
+        this.toggleMute();
+        break;
+      case 'KeyS':
+        this.splitAtPlayhead();
+        break;
+      case 'KeyF':
+        document.getElementById('btn-fullscreen').click();
+        break;
+      case 'BracketLeft':
+        this.moveClip(-1);
+        break;
+      case 'BracketRight':
+        this.moveClip(1);
+        break;
+    }
+  }
 
   async handleFiles(fileList) {
     for (const file of Array.from(fileList)) {
@@ -146,12 +202,17 @@ class CapCutClone {
       const url = URL.createObjectURL(file);
       const isVideo = file.type.startsWith('video/');
       let duration = 5;
-      if (isVideo) duration = await this.getVideoDuration(url);
+      let thumb = null;
 
-      const media = { id, file, url, type: isVideo ? 'video' : 'image', name: file.name, duration };
+      if (isVideo) {
+        duration = await this.getVideoDuration(url);
+        thumb = await this.generateThumbnail(url);
+      } else {
+        thumb = url;
+      }
+
+      const media = { id, file, url, type: isVideo ? 'video' : 'image', name: file.name, duration, thumb };
       this.media.push(media);
-
-      // Auto-add to timeline
       this.addClip(media);
     }
     this.renderMediaList();
@@ -162,10 +223,35 @@ class CapCutClone {
     return new Promise((resolve) => {
       const v = document.createElement('video');
       v.preload = 'metadata';
-      v.onloadedmetadata = () => {
-        resolve(v.duration || 5);
-      };
+      v.onloadedmetadata = () => resolve(v.duration || 5);
       v.onerror = () => resolve(5);
+      v.src = url;
+    });
+  }
+
+  generateThumbnail(url) {
+    return new Promise((resolve) => {
+      const v = document.createElement('video');
+      v.preload = 'auto';
+      v.muted = true;
+      v.playsInline = true;
+      v.onloadeddata = () => {
+        v.currentTime = Math.min(1, (v.duration || 2) * 0.1);
+      };
+      v.onseeked = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = 112;
+          c.height = 80;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(v, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.7));
+        } catch {
+          resolve(null);
+        }
+      };
+      v.onerror = () => resolve(null);
+      setTimeout(() => resolve(null), 4000);
       v.src = url;
     });
   }
@@ -181,16 +267,10 @@ class CapCutClone {
       offset: 0,
     });
     this.selectedClipId = id;
-
-    // If first clip, load it
-    if (this.clips.length === 1) {
-      this.loadClip(0);
-    }
+    if (this.clips.length === 1) this.loadClip(0);
     this.renderTimeline();
     this.updateStats();
   }
-
-  // ─── Playback engine (multi-clip) ─────────────────────────────────
 
   getTotalDuration() {
     return this.clips.reduce((s, c) => s + c.duration, 0);
@@ -200,9 +280,7 @@ class CapCutClone {
     let acc = 0;
     for (let i = 0; i < this.clips.length; i++) {
       const c = this.clips[i];
-      if (t < acc + c.duration) {
-        return { index: i, localTime: t - acc, clip: c };
-      }
+      if (t < acc + c.duration) return { index: i, localTime: t - acc, clip: c };
       acc += c.duration;
     }
     if (this.clips.length) {
@@ -231,9 +309,7 @@ class CapCutClone {
           this.video.currentTime = localTime + (clip.offset || 0);
           this.applyFilter();
           this.resizeCanvas();
-          if (autoplay || this.isPlaying) {
-            this.video.play().catch(() => {});
-          }
+          if (autoplay || this.isPlaying) this.video.play().catch(() => {});
         };
       } else {
         this.video.currentTime = localTime + (clip.offset || 0);
@@ -255,7 +331,6 @@ class CapCutClone {
     this.globalTime = t;
     const info = this.getClipAtTime(t);
     if (!info) return;
-
     if (info.index !== this.currentClipIndex) {
       this.loadClip(info.index, info.localTime, this.isPlaying);
     } else {
@@ -266,38 +341,46 @@ class CapCutClone {
 
   togglePlay() {
     if (!this.clips.length) return;
-
     if (this.isPlaying) {
       this.video.pause();
       this.isPlaying = false;
       document.getElementById('btn-play').textContent = '▶';
     } else {
       if (this.currentClipIndex < 0) this.loadClip(0, 0, true);
-      else {
-        this.video.play().catch(() => {});
-      }
+      else this.video.play().catch(() => {});
       this.isPlaying = true;
       document.getElementById('btn-play').textContent = '⏸';
       this.drawLoop();
     }
   }
 
-  onClipEnded() {
+  async onClipEnded() {
     if (this.currentClipIndex < this.clips.length - 1) {
+      if (this.transition !== 'none') {
+        await this.playTransition();
+      }
       this.loadClip(this.currentClipIndex + 1, 0, true);
     } else {
       this.isPlaying = false;
       document.getElementById('btn-play').textContent = '▶';
-      // Stay at end
     }
   }
 
+  playTransition() {
+    return new Promise((resolve) => {
+      this.isTransitioning = true;
+      this.fadeOverlay.classList.add('active');
+      setTimeout(() => {
+        this.fadeOverlay.classList.remove('active');
+        this.isTransitioning = false;
+        resolve();
+      }, this.transition === 'fadeblack' ? 500 : 350);
+    });
+  }
+
   prevClip() {
-    if (this.currentClipIndex > 0) {
-      this.loadClip(this.currentClipIndex - 1, 0, this.isPlaying);
-    } else {
-      this.seekToGlobal(0);
-    }
+    if (this.currentClipIndex > 0) this.loadClip(this.currentClipIndex - 1, 0, this.isPlaying);
+    else this.seekToGlobal(0);
   }
 
   nextClip() {
@@ -314,12 +397,10 @@ class CapCutClone {
 
   onTimeUpdate() {
     if (this.currentClipIndex < 0 || !this.clips[this.currentClipIndex]) return;
-
     const clip = this.clips[this.currentClipIndex];
     let acc = 0;
     for (let i = 0; i < this.currentClipIndex; i++) acc += this.clips[i].duration;
     this.globalTime = acc + (this.video.currentTime - (clip.offset || 0));
-
     this.updateTimeUI();
     this.drawOverlays();
   }
@@ -327,11 +408,7 @@ class CapCutClone {
   updateTimeUI() {
     const total = this.getTotalDuration();
     this.timeDisplay.textContent = `${this.formatTime(this.globalTime)} / ${this.formatTime(total)}`;
-    if (total > 0) {
-      this.seekBar.value = (this.globalTime / total) * 1000;
-    }
-
-    // Playhead position
+    if (total > 0) this.seekBar.value = (this.globalTime / total) * 1000;
     const x = 40 + this.globalTime * this.pixelsPerSecond;
     this.playhead.style.left = `${x}px`;
   }
@@ -342,8 +419,6 @@ class CapCutClone {
     const sec = Math.floor(s % 60);
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   }
-
-  // ─── Filters & overlays ───────────────────────────────────────────
 
   applyFilter() {
     const map = {
@@ -359,13 +434,26 @@ class CapCutClone {
     this.video.style.filter = map[this.currentFilter] || 'none';
   }
 
+  applyTextPreset(name) {
+    const presets = {
+      title: { text: 'Your Title', size: 72, pos: 'center', color: '#ffffff' },
+      subtitle: { text: 'Subtitle here', size: 42, pos: 'bottom', color: '#00f5a0' },
+      caption: { text: 'Caption text', size: 36, pos: 'bottom', color: '#ffffff' },
+      hook: { text: 'Wait for it...', size: 56, pos: 'top', color: '#ffcc00' },
+    };
+    const p = presets[name];
+    if (!p) return;
+    document.getElementById('text-input').value = p.text;
+    document.getElementById('text-size').value = String(p.size);
+    document.getElementById('text-pos').value = p.pos;
+    document.getElementById('text-color').value = p.color;
+  }
+
   addTextOverlay() {
     const text = document.getElementById('text-input').value.trim();
     if (!text) return;
-
     const pos = document.getElementById('text-pos').value;
     const yMap = { top: 0.15, center: 0.5, bottom: 0.85 };
-
     this.textOverlays.push({
       id: crypto.randomUUID(),
       text,
@@ -386,19 +474,18 @@ class CapCutClone {
   }
 
   resizeCanvas() {
-    if (!this.video.videoWidth) return;
-    const rect = this.video.getBoundingClientRect();
-    this.canvas.width = this.video.videoWidth;
-    this.canvas.height = this.video.videoHeight;
-    this.canvas.style.width = `${rect.width}px`;
-    this.canvas.style.height = `${rect.height}px`;
+    const rect = this.aspectFrame.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) return;
+    const vw = this.video.videoWidth || 1280;
+    const vh = this.video.videoHeight || 720;
+    this.canvas.width = vw;
+    this.canvas.height = vh;
     this.drawOverlays();
   }
 
   drawOverlays() {
     if (!this.canvas.width) return;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
     this.textOverlays.forEach(t => {
       const scale = this.canvas.width / 640;
       this.ctx.font = `bold ${t.size * scale}px Inter, sans-serif`;
@@ -423,17 +510,31 @@ class CapCutClone {
     requestAnimationFrame(() => this.drawLoop());
   }
 
-  // ─── Timeline actions ─────────────────────────────────────────────
+  moveClip(dir) {
+    if (!this.selectedClipId) return;
+    const idx = this.clips.findIndex(c => c.id === this.selectedClipId);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= this.clips.length) return;
+
+    const temp = this.clips[idx];
+    this.clips[idx] = this.clips[newIdx];
+    this.clips[newIdx] = temp;
+
+    let t = 0;
+    this.clips.forEach(c => { c.start = t; t += c.duration; });
+
+    this.currentClipIndex = newIdx;
+    this.renderTimeline();
+    this.updateStats();
+  }
 
   deleteSelectedClip() {
     if (!this.selectedClipId) return;
     const idx = this.clips.findIndex(c => c.id === this.selectedClipId);
     if (idx === -1) return;
-
     this.clips.splice(idx, 1);
     this.selectedClipId = null;
-
-    // Recompute starts
     let t = 0;
     this.clips.forEach(c => { c.start = t; t += c.duration; });
 
@@ -475,15 +576,8 @@ class CapCutClone {
       alert('Move playhead further into the clip to split.');
       return;
     }
-
-    const media = this.media.find(m => m.id === clip.mediaId);
-    if (!media) return;
-
-    // Shorten current
     const remaining = clip.duration - local;
     clip.duration = local;
-
-    // Insert new clip after
     const newClip = {
       id: crypto.randomUUID(),
       mediaId: clip.mediaId,
@@ -492,11 +586,8 @@ class CapCutClone {
       offset: (clip.offset || 0) + local,
     };
     this.clips.splice(this.currentClipIndex + 1, 0, newClip);
-
-    // Recompute starts
     let t = 0;
     this.clips.forEach(c => { c.start = t; t += c.duration; });
-
     this.selectedClipId = newClip.id;
     this.renderTimeline();
     this.updateStats();
@@ -524,7 +615,6 @@ class CapCutClone {
       alert('Nothing to export. Add clips first.');
       return;
     }
-    // Prototype: download the currently loaded media
     const clip = this.clips[this.currentClipIndex >= 0 ? this.currentClipIndex : 0];
     const media = this.media.find(m => m.id === clip.mediaId);
     if (media) {
@@ -532,11 +622,9 @@ class CapCutClone {
       a.href = media.url;
       a.download = 'capcut-clone-' + media.name;
       a.click();
-      alert('Downloaded source media.\n\nNote: Filters & text are preview-only in this version.\nFull baked export requires FFmpeg.wasm (future update).');
+      alert('Downloaded source media.\n\nFilters, text & transitions are preview-only.\nFull baked export needs FFmpeg.wasm (future).');
     }
   }
-
-  // ─── Render ───────────────────────────────────────────────────────
 
   updateStats() {
     document.getElementById('clip-count').textContent = this.clips.length;
@@ -549,8 +637,13 @@ class CapCutClone {
       const onTimeline = this.clips.some(c => c.mediaId === m.id);
       const el = document.createElement('div');
       el.className = 'media-item' + (this.clips[this.currentClipIndex]?.mediaId === m.id ? ' active' : '');
+
+      const thumbHtml = m.thumb
+        ? `<img class="media-thumb" src="${m.thumb}" alt="" />`
+        : `<div class="media-thumb placeholder">${m.type === 'video' ? '▶' : '🖼'}</div>`;
+
       el.innerHTML = `
-        <div class="media-thumb">${m.type === 'video' ? '▶' : '🖼'}</div>
+        ${thumbHtml}
         <div class="media-info">
           <div class="media-name">${m.name}</div>
           <div class="media-meta">${m.type} · ${m.duration.toFixed(1)}s ${onTimeline ? '· on timeline' : ''}</div>
@@ -565,7 +658,6 @@ class CapCutClone {
       });
       el.addEventListener('dblclick', () => this.addClip(m));
       el.addEventListener('click', () => {
-        // Load if already on timeline
         const idx = this.clips.findIndex(c => c.mediaId === m.id);
         if (idx >= 0) this.loadClip(idx, 0, false);
       });
@@ -585,7 +677,6 @@ class CapCutClone {
   }
 
   renderTimeline() {
-    // Ruler
     this.ruler.innerHTML = '';
     const total = Math.max(this.getTotalDuration(), 10);
     const step = total > 60 ? 10 : total > 20 ? 5 : 2;
@@ -597,7 +688,6 @@ class CapCutClone {
       this.ruler.appendChild(mark);
     }
 
-    // Clips
     this.clipsContainer.innerHTML = '';
     this.clipsContainer.style.minWidth = `${Math.max(900, total * this.pixelsPerSecond + 100)}px`;
 
