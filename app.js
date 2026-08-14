@@ -1,5 +1,5 @@
 /**
- * CapCut Clone v3 – Browser Video Editor
+ * CapCut Clone v3 - Browser Video Editor
  * Multi-clip, keyboard shortcuts, transitions, thumbnails, text presets, clip reorder.
  */
 
@@ -510,23 +510,50 @@ class CapCutClone {
     requestAnimationFrame(() => this.drawLoop());
   }
 
+  recomputeClipStarts() {
+    let t = 0;
+    this.clips.forEach(c => { c.start = t; t += c.duration; });
+  }
+
+  reorderClip(fromIdx, toIdx) {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+    if (fromIdx >= this.clips.length || toIdx >= this.clips.length) return;
+
+    const [clip] = this.clips.splice(fromIdx, 1);
+    this.clips.splice(toIdx, 0, clip);
+    this.recomputeClipStarts();
+
+    if (this.selectedClipId === clip.id) {
+      this.currentClipIndex = toIdx;
+    } else if (this.currentClipIndex === fromIdx) {
+      this.currentClipIndex = toIdx;
+    } else if (fromIdx < this.currentClipIndex && toIdx >= this.currentClipIndex) {
+      this.currentClipIndex--;
+    } else if (fromIdx > this.currentClipIndex && toIdx <= this.currentClipIndex) {
+      this.currentClipIndex++;
+    }
+
+    this.renderTimeline();
+    this.updateStats();
+  }
+
   moveClip(dir) {
     if (!this.selectedClipId) return;
     const idx = this.clips.findIndex(c => c.id === this.selectedClipId);
     if (idx < 0) return;
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= this.clips.length) return;
+    this.reorderClip(idx, newIdx);
+  }
 
-    const temp = this.clips[idx];
-    this.clips[idx] = this.clips[newIdx];
-    this.clips[newIdx] = temp;
-
-    let t = 0;
-    this.clips.forEach(c => { c.start = t; t += c.duration; });
-
-    this.currentClipIndex = newIdx;
-    this.renderTimeline();
-    this.updateStats();
+  getDropIndex(clientX) {
+    const rect = this.clipsContainer.getBoundingClientRect();
+    const x = clientX - rect.left + this.clipsContainer.parentElement.scrollLeft;
+    for (let i = 0; i < this.clips.length; i++) {
+      const mid = (this.clips[i].start + this.clips[i].duration / 2) * this.pixelsPerSecond;
+      if (x < mid) return i;
+    }
+    return this.clips.length - 1;
   }
 
   deleteSelectedClip() {
@@ -535,8 +562,7 @@ class CapCutClone {
     if (idx === -1) return;
     this.clips.splice(idx, 1);
     this.selectedClipId = null;
-    let t = 0;
-    this.clips.forEach(c => { c.start = t; t += c.duration; });
+    this.recomputeClipStarts();
 
     if (this.clips.length === 0) {
       this.currentClipIndex = -1;
@@ -586,8 +612,7 @@ class CapCutClone {
       offset: (clip.offset || 0) + local,
     };
     this.clips.splice(this.currentClipIndex + 1, 0, newClip);
-    let t = 0;
-    this.clips.forEach(c => { c.start = t; t += c.duration; });
+    this.recomputeClipStarts();
     this.selectedClipId = newClip.id;
     this.renderTimeline();
     this.updateStats();
@@ -699,13 +724,68 @@ class CapCutClone {
         + (i === this.currentClipIndex ? ' playing' : '');
       el.style.left = `${clip.start * this.pixelsPerSecond}px`;
       el.style.width = `${Math.max(clip.duration * this.pixelsPerSecond, 36)}px`;
+      el.draggable = true;
+      el.dataset.index = String(i);
       el.innerHTML = `<span class="clip-name">${media ? media.name : 'Clip'}</span>`;
+
       el.addEventListener('click', () => {
         this.selectedClipId = clip.id;
         this.loadClip(i, 0, false);
       });
+
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(i));
+        el.classList.add('dragging');
+        this._dragFromIndex = i;
+      });
+
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        this.clipsContainer.querySelectorAll('.clip').forEach(c => c.classList.remove('drag-over'));
+        this._dragFromIndex = null;
+      });
+
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        this.clipsContainer.querySelectorAll('.clip').forEach(c => c.classList.remove('drag-over'));
+        el.classList.add('drag-over');
+      });
+
+      el.addEventListener('dragleave', () => {
+        el.classList.remove('drag-over');
+      });
+
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.classList.remove('drag-over');
+        const from = this._dragFromIndex != null
+          ? this._dragFromIndex
+          : parseInt(e.dataTransfer.getData('text/plain'), 10);
+        const to = i;
+        if (!Number.isNaN(from) && from !== to) {
+          this.reorderClip(from, to);
+        }
+      });
+
       this.clipsContainer.appendChild(el);
     });
+
+    this.clipsContainer.ondragover = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    };
+    this.clipsContainer.ondrop = (e) => {
+      e.preventDefault();
+      if (e.target !== this.clipsContainer) return;
+      const from = this._dragFromIndex != null
+        ? this._dragFromIndex
+        : parseInt(e.dataTransfer.getData('text/plain'), 10);
+      if (Number.isNaN(from)) return;
+      const to = this.getDropIndex(e.clientX);
+      if (from !== to) this.reorderClip(from, to);
+    };
 
     this.updateTimeUI();
   }
