@@ -540,11 +540,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .timeline {
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
+  touch-action: pan-x pinch-zoom;
 }
 
 .track-content {
-  touch-action: pan-x;
+  touch-action: pan-x pinch-zoom;
 }
 
 .playback-controls .icon-btn,
