@@ -466,14 +466,26 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: linear-gradient(135deg, #1a3a2a, #0d2818);
   border: 1px solid var(--accent-dim);
   border-radius: 4px;
-  cursor: pointer;
+  cursor: grab;
   display: flex;
   align-items: center;
   padding: 0 8px;
   font-size: 11px;
   overflow: hidden;
   user-select: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.15s;
+}
+
+.clip.dragging {
+  opacity: 0.45;
+  border-style: dashed;
+  cursor: grabbing;
+}
+
+.clip.drag-over {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 245, 160, 0.6);
+  transform: scaleY(1.06);
 }
 .clip:hover { border-color: var(--accent); }
 .clip.selected {
