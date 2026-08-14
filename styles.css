@@ -34,7 +34,7 @@ body { font-family: var(--font); background: var(--bg-dark); color: var(--text);
 .sidebar h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px; }
 .stat { font-size: 20px; font-weight: 600; color: var(--accent); }
 .tabs { display: flex; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.tab { flex: 1; min-width: 60px; background: none; border: none; color: var(--text-muted); padding: 10px 6px; font-size: 12px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; font-family: inherit; }
+.tab { flex: 1; min-width: 52px; background: none; border: none; color: var(--text-muted); padding: 10px 4px; font-size: 11px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; font-family: inherit; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-content { padding: 16px; overflow-y: auto; flex: 1; }
 .tab-content.hidden { display: none; }
@@ -59,7 +59,7 @@ body { font-family: var(--font); background: var(--bg-dark); color: var(--text);
 .filter-btn { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 8px 4px; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; }
 .filter-btn.active, .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
-#speed-value, #clip-speed-value, #filter-intensity-value, #clip-opacity-value, #fade-in-value, #fade-out-value { font-size: 12px; color: var(--accent); }
+#speed-value, #clip-speed-value, #filter-intensity-value, #clip-opacity-value, #fade-in-value, #fade-out-value, #bgm-vol-val { font-size: 12px; color: var(--accent); }
 .item-list { display: flex; flex-direction: column; gap: 6px; }
 .text-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-hover); border-radius: 6px; font-size: 12px; }
 .text-item button { background: none; border: none; color: var(--danger); cursor: pointer; }
@@ -80,7 +80,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .playback-controls { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--bg-panel); border-top: 1px solid var(--border); }
 #time-display { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 100px; color: var(--text-muted); }
 #seek-bar { flex: 1; }
-.timeline-area { height: 180px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.timeline-area { height: 220px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
 .timeline-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--border); }
 .timeline-label { font-size: 12px; color: var(--text-muted); margin-left: 8px; flex: 1; }
 .zoom-level { font-size: 11px; color: var(--text-muted); margin-right: 6px; }
@@ -108,4 +108,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .sticker-btn { background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; font-size: 22px; padding: 10px 4px; cursor: pointer; }
 .sticker-btn:hover { border-color: var(--accent); transform: scale(1.08); }
 .sticker-overlay { position: absolute; cursor: grab; user-select: none; z-index: 5; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); touch-action: none; }
+.grade-row { margin-bottom: 6px; }
+.grade-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.audio-track { height: 36px; }
+.audio-track .track-content { height: 32px; background: #1a1520; }
+.audio-clip { position: absolute; top: 2px; height: 28px; background: linear-gradient(135deg, #3a2a5a, #2a1a40); border: 1px solid #a070ff; border-radius: 4px; font-size: 10px; padding: 0 8px; display: flex; align-items: center; color: #e0d0ff; overflow: hidden; cursor: pointer; }
+.audio-clip.selected { box-shadow: 0 0 0 1px #c9a0ff; }
 @media (max-width: 900px) { .sidebar.right { display: none; } .hint-bar { display: none; } }
