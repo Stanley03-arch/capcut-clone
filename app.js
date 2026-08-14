@@ -1,6 +1,7 @@
 /**
  * CapCut Clone v3 - Browser Video Editor
  * Multi-clip, keyboard shortcuts, transitions, thumbnails, text presets, clip reorder.
+ * Mouse + touch drag-and-drop reordering.
  */
 
 class CapCutClone {
@@ -548,12 +549,14 @@ class CapCutClone {
 
   getDropIndex(clientX) {
     const rect = this.clipsContainer.getBoundingClientRect();
-    const x = clientX - rect.left + this.clipsContainer.parentElement.scrollLeft;
+    const scrollParent = this.clipsContainer.parentElement;
+    const scrollLeft = scrollParent ? scrollParent.scrollLeft : 0;
+    const x = clientX - rect.left + scrollLeft;
     for (let i = 0; i < this.clips.length; i++) {
       const mid = (this.clips[i].start + this.clips[i].duration / 2) * this.pixelsPerSecond;
       if (x < mid) return i;
     }
-    return this.clips.length - 1;
+    return Math.max(0, this.clips.length - 1);
   }
 
   deleteSelectedClip() {
@@ -729,10 +732,15 @@ class CapCutClone {
       el.innerHTML = `<span class="clip-name">${media ? media.name : 'Clip'}</span>`;
 
       el.addEventListener('click', () => {
+        if (this._suppressClick) {
+          this._suppressClick = false;
+          return;
+        }
         this.selectedClipId = clip.id;
         this.loadClip(i, 0, false);
       });
 
+      // Desktop HTML5 drag
       el.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(i));
@@ -763,11 +771,81 @@ class CapCutClone {
         const from = this._dragFromIndex != null
           ? this._dragFromIndex
           : parseInt(e.dataTransfer.getData('text/plain'), 10);
-        const to = i;
-        if (!Number.isNaN(from) && from !== to) {
-          this.reorderClip(from, to);
-        }
+        if (!Number.isNaN(from) && from !== i) this.reorderClip(from, i);
       });
+
+      // Touch drag (mobile / tablet)
+      el.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        this._touchDrag = {
+          fromIndex: i,
+          startX: touch.clientX,
+          startY: touch.clientY,
+          moved: false,
+          el,
+        };
+        el.classList.add('dragging');
+      }, { passive: true });
+
+      el.addEventListener('touchmove', (e) => {
+        if (!this._touchDrag || this._touchDrag.el !== el) return;
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        const dx = Math.abs(touch.clientX - this._touchDrag.startX);
+        const dy = Math.abs(touch.clientY - this._touchDrag.startY);
+
+        if (!this._touchDrag.moved && (dx > 8 || dy > 8)) {
+          this._touchDrag.moved = true;
+          this._suppressClick = true;
+        }
+        if (!this._touchDrag.moved) return;
+
+        e.preventDefault();
+
+        this.clipsContainer.querySelectorAll('.clip').forEach(c => c.classList.remove('drag-over'));
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetClip = target && target.closest ? target.closest('.clip') : null;
+        if (targetClip && targetClip !== el) targetClip.classList.add('drag-over');
+      }, { passive: false });
+
+      el.addEventListener('touchend', (e) => {
+        if (!this._touchDrag || this._touchDrag.el !== el) return;
+        const drag = this._touchDrag;
+        this._touchDrag = null;
+        el.classList.remove('dragging');
+        this.clipsContainer.querySelectorAll('.clip').forEach(c => c.classList.remove('drag-over'));
+
+        if (!drag.moved) {
+          this.selectedClipId = clip.id;
+          this.loadClip(i, 0, false);
+          return;
+        }
+
+        const touch = (e.changedTouches && e.changedTouches[0]) || null;
+        if (!touch) return;
+
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetClip = target && target.closest ? target.closest('.clip') : null;
+        let toIdx = drag.fromIndex;
+        if (targetClip && targetClip.dataset.index != null) {
+          toIdx = parseInt(targetClip.dataset.index, 10);
+        } else {
+          toIdx = this.getDropIndex(touch.clientX);
+        }
+
+        if (!Number.isNaN(toIdx) && toIdx !== drag.fromIndex) {
+          this.reorderClip(drag.fromIndex, toIdx);
+        }
+      }, { passive: true });
+
+      el.addEventListener('touchcancel', () => {
+        if (this._touchDrag && this._touchDrag.el === el) {
+          el.classList.remove('dragging');
+          this.clipsContainer.querySelectorAll('.clip').forEach(c => c.classList.remove('drag-over'));
+          this._touchDrag = null;
+        }
+      }, { passive: true });
 
       this.clipsContainer.appendChild(el);
     });
