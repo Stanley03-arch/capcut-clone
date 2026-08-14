@@ -18,7 +18,7 @@
           <path d="M10 9l5 3-5 3V9z" fill="#00f5a0"/>
         </svg>
         <span>CapCut Clone</span>
-        <span class="badge">v6</span>
+        <span class="badge">v7</span>
       </div>
       <div class="topbar-actions">
         <span id="shortcut-hint" class="hint-bar">Space · Ctrl+Z · pinch zoom</span>
@@ -141,6 +141,16 @@
             <button id="btn-grade-reset" class="btn secondary small" style="margin-top:6px">Reset grade</button>
           </div>
           <div class="tool-group">
+            <label>Stabilize</label>
+            <div class="grade-row"><span class="grade-label">Strength <span id="stab-strength-val">50</span></span><input type="range" id="stab-strength" min="0" max="100" step="5" value="50" /></div>
+            <div class="grade-row"><span class="grade-label">Smooth <span id="stab-smooth-val">50</span></span><input type="range" id="stab-smooth" min="0" max="100" step="5" value="50" /></div>
+            <div class="transform-row" style="margin-top:8px">
+              <button id="btn-stabilize" class="btn secondary small">Stabilize</button>
+              <button id="btn-stab-clear" class="btn ghost small">Clear</button>
+            </div>
+            <p class="hint" id="stab-status" style="margin-top:6px">Select a clip, then Stabilize</p>
+          </div>
+          <div class="tool-group">
             <label>Clip actions</label>
             <div class="transform-row">
               <button id="btn-duplicate" class="btn secondary small">Duplicate</button>
@@ -203,7 +213,7 @@
           <div id="no-media" class="no-media">
             <div class="no-media-icon">▶</div>
             <p>Upload a video to start editing</p>
-            <span class="hint">v6 · audio · color · animations · freeze · duplicate</span>
+            <span class="hint">v7 · stabilize · audio · color · freeze · duplicate</span>
           </div>
         </div>
         <div class="playback-controls">
@@ -236,7 +246,7 @@
             <button id="btn-move-right" class="btn secondary small">Move →</button>
           </div>
         </div>
-        <div class="info-box"><p><strong>v6:</strong> Audio/BGM, color grade, text animations, freeze, duplicate, slide/zoom transitions.</p></div>
+        <div class="info-box"><p><strong>v7:</strong> Stabilize, audio/BGM, color grade, text animations, freeze, duplicate.</p></div>
       </aside>
     </div>
     <footer class="timeline-area">
