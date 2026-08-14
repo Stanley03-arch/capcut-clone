@@ -15,7 +15,7 @@ A lightweight browser-based video editor inspired by CapCut.
   - `S` – split at playhead
   - `F` – fullscreen
   - `[` `]` – move clip left / right
-- **Drag-and-drop reorder** – drag clips on the timeline to reorder
+- **Drag-and-drop reorder** – drag clips on the timeline (mouse + **touch**)
 - **Clip reorder** – also via buttons / `[` `]` keys
 - **Transitions** – Fade / Fade through black between clips
 - **Video thumbnails** in the media list
