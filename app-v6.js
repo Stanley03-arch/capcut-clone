@@ -1,5 +1,5 @@
 /**
- * CapCut Clone v6 feature pack
+ * CapCut Clone v6/v7 feature pack
  * Loads after app.js and extends CapCutClone
  */
 (function () {
@@ -11,7 +11,7 @@
   whenReady(() => {
     const P = window.CapCutClone && window.CapCutClone.prototype;
     if (!P) {
-      console.warn('CapCutClone not found — v6 features skipped');
+      console.warn('CapCutClone not found — v6/v7 features skipped');
       return;
     }
 
@@ -243,10 +243,244 @@
       this.pushHistory && this.pushHistory('freeze');
     };
 
+    // --- Video stabilization ---
+    P.stabilizeClip = async function () {
+      if (this.currentClipIndex < 0 || !this.clips[this.currentClipIndex]) {
+        alert('Select a clip on the timeline first');
+        return;
+      }
+      const clip = this.clips[this.currentClipIndex];
+      const media = this.media.find((m) => m.id === clip.mediaId);
+      if (!media || media.type !== 'video') {
+        alert('Stabilization works on video clips only');
+        return;
+      }
+
+      const strength = parseInt(document.getElementById('stab-strength')?.value || '50', 10) / 100;
+      const smooth = parseInt(document.getElementById('stab-smooth')?.value || '50', 10) / 100;
+      const status = document.getElementById('stab-status');
+      const btn = document.getElementById('btn-stabilize');
+      if (btn) btn.disabled = true;
+      if (status) status.textContent = 'Analyzing motion…';
+
+      const wasPlaying = this.isPlaying;
+      if (wasPlaying) this.togglePlay();
+
+      try {
+        const path = await this._analyzeMotion(media.url, clip, (p) => {
+          if (status) status.textContent = 'Analyzing… ' + Math.round(p * 100) + '%';
+        });
+        const smoothed = this._smoothPath(path, 0.15 + smooth * 0.7);
+        const transforms = smoothed.map((p) => ({
+          t: p.t,
+          dx: -p.dx * strength,
+          dy: -p.dy * strength,
+        }));
+        clip.stabilize = {
+          strength,
+          smooth,
+          transforms,
+          zoom: 1 + strength * 0.08,
+        };
+        if (status) {
+          status.textContent = 'Stabilized · ' + transforms.length + ' samples · zoom ' + clip.stabilize.zoom.toFixed(2);
+        }
+        this.pushHistory && this.pushHistory('stabilize');
+        this.applyStabilizeTransform(clip);
+      } catch (err) {
+        console.error(err);
+        if (status) status.textContent = 'Stabilize failed: ' + (err.message || err);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    P.clearStabilize = function () {
+      const clip = this.clips.find((c) => c.id === this.selectedClipId) || this.clips[this.currentClipIndex];
+      if (!clip) return;
+      delete clip.stabilize;
+      if (this.video) this.applyTransform(clip);
+      const status = document.getElementById('stab-status');
+      if (status) status.textContent = 'Stabilization cleared';
+      this.pushHistory && this.pushHistory('stab-clear');
+    };
+
+    P._analyzeMotion = function (url, clip, onProgress) {
+      return new Promise((resolve, reject) => {
+        const v = document.createElement('video');
+        v.muted = true;
+        v.playsInline = true;
+        v.preload = 'auto';
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const W = 160;
+        const H = 90;
+        canvas.width = W;
+        canvas.height = H;
+
+        const startT = clip.offset || 0;
+        const endT = startT + (clip.duration || 5);
+        const step = Math.max(0.08, (endT - startT) / 60);
+        const path = [];
+        let prevGray = null;
+        let t = startT;
+        let cumX = 0;
+        let cumY = 0;
+
+        const toGray = (data) => {
+          const g = new Float32Array(W * H);
+          for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+            g[j] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+          }
+          return g;
+        };
+
+        const estimateShift = (prev, curr) => {
+          const block = 24;
+          const maxShift = 12;
+          const cx = (W - block) >> 1;
+          const cy = (H - block) >> 1;
+          let bestSad = Infinity;
+          let bestDx = 0;
+          let bestDy = 0;
+          for (let dy = -maxShift; dy <= maxShift; dy++) {
+            for (let dx = -maxShift; dx <= maxShift; dx++) {
+              let sad = 0;
+              for (let y = 0; y < block; y++) {
+                const py = cy + y;
+                const qy = cy + y + dy;
+                if (qy < 0 || qy >= H) { sad = Infinity; break; }
+                for (let x = 0; x < block; x++) {
+                  const px = cx + x;
+                  const qx = cx + x + dx;
+                  if (qx < 0 || qx >= W) { sad = Infinity; break; }
+                  sad += Math.abs(prev[py * W + px] - curr[qy * W + qx]);
+                }
+              }
+              if (sad < bestSad) {
+                bestSad = sad;
+                bestDx = dx;
+                bestDy = dy;
+              }
+            }
+          }
+          return { dx: bestDx, dy: bestDy };
+        };
+
+        const sampleNext = () => {
+          if (t > endT + 0.01) {
+            resolve(path);
+            return;
+          }
+          const seekTo = Math.min(t, (v.duration || endT) - 0.01);
+          const onSeeked = () => {
+            v.removeEventListener('seeked', onSeeked);
+            try {
+              ctx.drawImage(v, 0, 0, W, H);
+              const gray = toGray(ctx.getImageData(0, 0, W, H).data);
+              if (prevGray) {
+                const shift = estimateShift(prevGray, gray);
+                cumX += shift.dx;
+                cumY += shift.dy;
+              }
+              path.push({ t: t - startT, dx: cumX, dy: cumY });
+              prevGray = gray;
+              const progress = (t - startT) / Math.max(0.01, endT - startT);
+              onProgress && onProgress(Math.min(1, progress));
+              t += step;
+              setTimeout(sampleNext, 0);
+            } catch (e) {
+              reject(e);
+            }
+          };
+          v.addEventListener('seeked', onSeeked);
+          try {
+            v.currentTime = seekTo;
+          } catch (e) {
+            reject(e);
+          }
+        };
+
+        v.onloadeddata = () => sampleNext();
+        v.onerror = () => reject(new Error('Could not load video for analysis'));
+        v.src = url;
+      });
+    };
+
+    P._smoothPath = function (path, alpha) {
+      if (!path.length) return path;
+      const out = [];
+      let sx = path[0].dx;
+      let sy = path[0].dy;
+      for (let i = 0; i < path.length; i++) {
+        sx = alpha * path[i].dx + (1 - alpha) * sx;
+        sy = alpha * path[i].dy + (1 - alpha) * sy;
+        out.push({ t: path[i].t, dx: sx, dy: sy });
+      }
+      const residual = [];
+      for (let i = 0; i < path.length; i++) {
+        residual.push({
+          t: path[i].t,
+          dx: path[i].dx - out[i].dx,
+          dy: path[i].dy - out[i].dy,
+        });
+      }
+      return residual;
+    };
+
+    P.applyStabilizeTransform = function (clip) {
+      if (!clip || !this.video) return;
+      const parts = [];
+      if (clip.flipH) parts.push('scaleX(-1)');
+      if (clip.flipV) parts.push('scaleY(-1)');
+      if (clip.rotate) parts.push('rotate(' + clip.rotate + 'deg)');
+      const stab = clip.stabilize;
+      if (stab && stab.transforms && stab.transforms.length) {
+        const local = Math.max(0, this.video.currentTime - (clip.offset || 0));
+        const tr = this._stabAtTime(stab.transforms, local);
+        const scale = 4;
+        const zoom = stab.zoom || 1;
+        parts.push('scale(' + zoom + ')');
+        parts.push('translate(' + (tr.dx * scale) + 'px,' + (tr.dy * scale) + 'px)');
+      }
+      this.video.style.transform = parts.length ? parts.join(' ') : 'none';
+      this.video.style.opacity = String(clip.opacity != null ? clip.opacity : 1);
+    };
+
+    P._stabAtTime = function (transforms, localT) {
+      if (!transforms.length) return { dx: 0, dy: 0 };
+      if (localT <= transforms[0].t) return { dx: transforms[0].dx, dy: transforms[0].dy };
+      for (let i = 1; i < transforms.length; i++) {
+        if (localT <= transforms[i].t) {
+          const a = transforms[i - 1];
+          const b = transforms[i];
+          const u = (localT - a.t) / Math.max(0.001, b.t - a.t);
+          return {
+            dx: a.dx + (b.dx - a.dx) * u,
+            dy: a.dy + (b.dy - a.dy) * u,
+          };
+        }
+      }
+      const last = transforms[transforms.length - 1];
+      return { dx: last.dx, dy: last.dy };
+    };
+
+    const origApplyTransform = P.applyTransform;
+    P.applyTransform = function (clip) {
+      if (clip && clip.stabilize) {
+        this.applyStabilizeTransform(clip);
+        return;
+      }
+      if (origApplyTransform) origApplyTransform.call(this, clip);
+    };
+
     const origOnTime = P.onTimeUpdate;
     P.onTimeUpdate = function () {
       origOnTime.call(this);
       if (this.syncAudioPlayback) this.syncAudioPlayback();
+      const clip = this.clips[this.currentClipIndex];
+      if (clip && clip.stabilize) this.applyStabilizeTransform(clip);
     };
 
     const origToggle = P.togglePlay;
@@ -373,7 +607,21 @@
           ed.applyFilter();
         };
       }
-      console.log('CapCut Clone v6 features loaded');
+      const btnStab = document.getElementById('btn-stabilize');
+      if (btnStab) btnStab.onclick = () => ed.stabilizeClip();
+      const btnStabClear = document.getElementById('btn-stab-clear');
+      if (btnStabClear) btnStabClear.onclick = () => ed.clearStabilize();
+      const stabStr = document.getElementById('stab-strength');
+      if (stabStr) stabStr.oninput = (e) => {
+        const lab = document.getElementById('stab-strength-val');
+        if (lab) lab.textContent = e.target.value;
+      };
+      const stabSm = document.getElementById('stab-smooth');
+      if (stabSm) stabSm.oninput = (e) => {
+        const lab = document.getElementById('stab-smooth-val');
+        if (lab) lab.textContent = e.target.value;
+      };
+      console.log('CapCut Clone v7 stabilize loaded');
     }
     bindV6();
   });

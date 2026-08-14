@@ -1,19 +1,17 @@
-# CapCut Clone – Web Video Editor (v6)
+# CapCut Clone – Web Video Editor (v7)
 
-Browser CapCut-style editor. Open `index.html` or run a local server.
+Browser CapCut-style editor with **video stabilization**.
 
-## v6 features
+## v7 – Stabilize
 
-- **Audio / BGM** – import music, volume, loop, mute video under BGM, A1 track
-- **Color grade** – brightness, contrast, saturate, warmth
-- **Text animations** – fade, slide-up, typewriter, pop
-- **Freeze frame** – 1s hold at playhead
-- **Duplicate clip**
-- **Transitions** – fade, fade black, slide left/right, zoom
+- **Stabilize** selected video clip (client-side motion analysis)
+- Strength & smooth sliders
+- Slight auto-zoom to hide edges
+- Clear to remove
 
-## Also includes (v1–v5)
+## Also includes
 
-Multi-clip timeline · trim · drag reorder · touch & pinch zoom · undo/redo · markers · speed · opacity · fade in/out · flip/rotate/reverse · filters + intensity · stickers · text styles · save/load
+Audio/BGM · color grade · text animations · freeze · duplicate · transitions · stickers · filters · trim · undo/redo · pinch-zoom timeline
 
 ## Run
 
@@ -22,6 +20,8 @@ python -m http.server 8080
 ```
 
 Open http://localhost:8080
+
+**Stabilize tip:** Select a clip → Effects → set Strength/Smooth → Stabilize. Analysis runs on a downscaled copy (local only; no upload).
 
 ## License
 
