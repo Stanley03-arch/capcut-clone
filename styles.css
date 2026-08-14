@@ -531,3 +531,34 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .sidebar.right { display: none; }
   .sidebar.left { width: 220px; }
 }
+
+/* Touch support */
+.clip {
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.timeline {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.track-content {
+  touch-action: pan-x;
+}
+
+.playback-controls .icon-btn,
+.timeline-toolbar .icon-btn {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+@media (pointer: coarse) {
+  .clip {
+    height: 52px;
+    top: 2px;
+  }
+  .hint-bar {
+    display: none;
+  }
+}
