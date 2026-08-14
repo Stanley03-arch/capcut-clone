@@ -1,7 +1,6 @@
 /**
  * CapCut Clone v3 - Browser Video Editor
- * Multi-clip, keyboard shortcuts, transitions, thumbnails, text presets, clip reorder.
- * Mouse + touch drag-and-drop reordering.
+ * Multi-clip, keyboard shortcuts, transitions, thumbnails, text presets, clip reorder, pinch-to-zoom timeline.
  */
 
 class CapCutClone {
@@ -40,6 +39,7 @@ class CapCutClone {
     this.ruler = document.getElementById('ruler');
     this.fadeOverlay = document.getElementById('fade-overlay');
     this.aspectFrame = document.getElementById('aspect-frame');
+    this.timelineEl = document.getElementById('timeline');
   }
 
   bindEvents() {
@@ -115,16 +115,13 @@ class CapCutClone {
     document.getElementById('btn-delete-clip').addEventListener('click', () => this.deleteSelectedClip());
     document.getElementById('btn-clear-timeline').addEventListener('click', () => this.clearTimeline());
     document.getElementById('btn-split').addEventListener('click', () => this.splitAtPlayhead());
-    document.getElementById('btn-zoom-in').addEventListener('click', () => {
-      this.pixelsPerSecond = Math.min(120, this.pixelsPerSecond + 10);
-      this.renderTimeline();
-    });
-    document.getElementById('btn-zoom-out').addEventListener('click', () => {
-      this.pixelsPerSecond = Math.max(20, this.pixelsPerSecond - 10);
-      this.renderTimeline();
-    });
+    document.getElementById('btn-zoom-in').addEventListener('click', () => this.setZoom(this.pixelsPerSecond + 10));
+    document.getElementById('btn-zoom-out').addEventListener('click', () => this.setZoom(this.pixelsPerSecond - 10));
     document.getElementById('btn-move-left').addEventListener('click', () => this.moveClip(-1));
     document.getElementById('btn-move-right').addEventListener('click', () => this.moveClip(1));
+
+    // Pinch-to-zoom + Ctrl/Cmd + wheel on timeline
+    this.bindTimelineZoom();
 
     document.getElementById('aspect').addEventListener('change', (e) => {
       this.aspectFrame.dataset.aspect = e.target.value;
@@ -511,6 +508,77 @@ class CapCutClone {
     requestAnimationFrame(() => this.drawLoop());
   }
 
+  setZoom(pps, anchorClientX = null) {
+    const min = 15;
+    const max = 200;
+    const next = Math.max(min, Math.min(max, pps));
+    if (Math.abs(next - this.pixelsPerSecond) < 0.01) return;
+
+    const timeline = this.timelineEl;
+    let anchorTime = this.globalTime;
+
+    if (timeline && anchorClientX != null) {
+      const rect = timeline.getBoundingClientRect();
+      const xInTrack = timeline.scrollLeft + (anchorClientX - rect.left) - 40;
+      anchorTime = Math.max(0, xInTrack / this.pixelsPerSecond);
+    }
+
+    this.pixelsPerSecond = next;
+    this.renderTimeline();
+
+    if (timeline && anchorClientX != null) {
+      const rect = timeline.getBoundingClientRect();
+      const newScroll = anchorTime * this.pixelsPerSecond - (anchorClientX - rect.left) + 40;
+      timeline.scrollLeft = Math.max(0, newScroll);
+    }
+  }
+
+  bindTimelineZoom() {
+    const el = this.timelineEl;
+    if (!el) return;
+
+    const pinchDist = (t0, t1) => {
+      const dx = t0.clientX - t1.clientX;
+      const dy = t0.clientY - t1.clientY;
+      return Math.hypot(dx, dy);
+    };
+    const pinchMidX = (t0, t1) => (t0.clientX + t1.clientX) / 2;
+
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        this._touchDrag = null;
+        this.clipsContainer.querySelectorAll('.clip').forEach(c => {
+          c.classList.remove('dragging', 'drag-over');
+        });
+        this._pinch = {
+          startDist: pinchDist(e.touches[0], e.touches[1]),
+          startPps: this.pixelsPerSecond,
+        };
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchmove', (e) => {
+      if (!this._pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const dist = pinchDist(e.touches[0], e.touches[1]);
+      if (this._pinch.startDist < 1) return;
+      const scale = dist / this._pinch.startDist;
+      const midX = pinchMidX(e.touches[0], e.touches[1]);
+      this.setZoom(this._pinch.startPps * scale, midX);
+    }, { passive: false });
+
+    const endPinch = () => { this._pinch = null; };
+    el.addEventListener('touchend', endPinch, { passive: true });
+    el.addEventListener('touchcancel', endPinch, { passive: true });
+
+    el.addEventListener('wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      this.setZoom(this.pixelsPerSecond * factor, e.clientX);
+    }, { passive: false });
+  }
+
   recomputeClipStarts() {
     let t = 0;
     this.clips.forEach(c => { c.start = t; t += c.duration; });
@@ -740,7 +808,6 @@ class CapCutClone {
         this.loadClip(i, 0, false);
       });
 
-      // Desktop HTML5 drag
       el.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(i));
@@ -774,7 +841,6 @@ class CapCutClone {
         if (!Number.isNaN(from) && from !== i) this.reorderClip(from, i);
       });
 
-      // Touch drag (mobile / tablet)
       el.addEventListener('touchstart', (e) => {
         if (e.touches.length !== 1) return;
         const touch = e.touches[0];
