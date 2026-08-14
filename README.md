@@ -1,68 +1,74 @@
-# CapCut Clone – Web Video Editor (Prototype)
+# CapCut Clone – Web Video Editor (v2)
 
 A lightweight, browser-based video editor inspired by **CapCut**.
 
-> **This is a prototype / starter project**, not a full CapCut replacement. CapCut is a large commercial product with multi-track timelines, AI tools, templates, cloud, mobile apps, etc. This project demonstrates core concepts in pure HTML/CSS/JS.
+> This is a **prototype / learning project**, not a full CapCut replacement. CapCut is a large commercial product with multi-track editing, AI tools, templates, cloud, and mobile apps.
+
+## What's new in v2
+
+- **Multi-clip sequential playback** – clips play one after another
+- Better timeline with ruler, zoom in/out, selected & playing states
+- Split clip at playhead
+- Prev / Next clip buttons
+- Mute toggle
+- More filters (Vivid, Soft, Invert)
+- Text position (Top / Center / Bottom)
+- Project stats (clip count + total duration)
+- Double-click media or use **+** to add to timeline
+- Clearer empty state and UI polish
 
 ## Features
 
 - Drag & drop / click to upload videos & images
-- Video preview with play / pause / seek
-- Basic timeline with clips
-- Text overlays (color + size)
-- CSS filters (B&W, Sepia, Contrast, Brightness, Blur)
-- Playback speed control (0.25x – 2x)
-- Volume control
-- Simple export (downloads original media in this prototype)
-- Dark CapCut-like UI
-- Responsive layout
+- Video preview with play / pause / seek across the whole timeline
+- Multi-clip timeline
+- Text overlays (color, size, position)
+- CSS filters
+- Playback speed (0.25x – 2x) and volume
+- Simple export (downloads source media)
+- Dark CapCut-style UI
 
-## How to Run
+## How to run
 
-Just open `index.html` in a modern browser (Chrome / Edge / Firefox recommended).
+Open `index.html` in Chrome, Edge, or Firefox.
 
-Or serve it locally:
+Or serve locally:
 
 ```bash
-# Python
 python -m http.server 8080
-
-# Node
+# or
 npx serve .
 ```
 
-Then visit `http://localhost:8080`.
+Visit `http://localhost:8080`.
 
-## Project Structure
+## Project structure
 
 ```
 capcut-clone/
-├── index.html      # Main UI
-├── styles.css      # Dark theme + layout
-├── app.js          # Editor logic
+├── index.html
+├── styles.css
+├── app.js
 └── README.md
 ```
 
-## Limitations (by design)
+## Limitations
 
-- Single active video at a time (multi-clip timeline is visual only)
-- No real transitions / effects rendering
-- Export is a simple download of the source file (no baked-in overlays/filters)
-- No AI features, templates, stickers, or cloud
-- No audio track editing beyond volume
+- Export downloads the original file (filters & text are preview-only)
+- No real multi-track audio, transitions, or keyframes
+- No AI features or templates
+- Single video track
 
-## Possible Next Steps
+## Future ideas
 
-- Integrate **FFmpeg.wasm** for real client-side export with filters + text
-- Multi-track timeline with drag-to-reorder & trim handles
-- WebCodecs API for better performance
-- React / Vue rewrite for larger feature set
-- Electron wrapper for desktop feel
+- FFmpeg.wasm for true client-side export with filters + text baked in
+- Drag-to-reorder clips + trim handles
+- Transitions between clips
+- Stickers / basic effects library
+- Electron desktop wrapper
 
 ## License
 
-MIT – feel free to fork and extend.
+MIT
 
----
-
-Made as a learning / demo project. Not affiliated with ByteDance or CapCut.
+Not affiliated with ByteDance or CapCut.
