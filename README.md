@@ -1,52 +1,21 @@
-# CapCut Clone – Web Video Editor (v3)
+# CapCut Clone – Web Video Editor (v4 Advanced)
 
-A lightweight browser-based video editor inspired by CapCut.
+Browser-based CapCut-inspired video editor.
 
-> Prototype / learning project — not a full CapCut replacement.
+## v4 Advanced
 
-## What's new in v3
+- Undo / Redo (Ctrl+Z / Ctrl+Y)
+- Clip trim handles (drag edges)
+- Snap to edges, per-clip speed
+- Timeline markers
+- Save / Load project (Ctrl+S)
+- MediaRecorder WebM export
+- Pinch-zoom + touch drag reorder
+- Filters, text overlays, transitions
 
-- **Keyboard shortcuts**
-  - `Space` – play / pause
-  - `Delete` / `Backspace` – delete selected clip
-  - `←` `→` – seek (±1s, Shift = ±5s)
-  - `↑` `↓` – previous / next clip
-  - `M` – mute
-  - `S` – split at playhead
-  - `F` – fullscreen
-  - `[` `]` – move clip left / right
-- **Drag-and-drop reorder** – drag clips on the timeline (mouse + **touch**)
-- **Pinch-to-zoom** – pinch on the timeline (or Ctrl/Cmd + wheel) to zoom
-- **Clip reorder** – also via buttons / `[` `]` keys
-- **Transitions** – Fade / Fade through black between clips
-- **Video thumbnails** in the media list
-- **Text presets** – Title, Subtitle, Caption, Hook
-- **Aspect ratio preview** – 16:9, 9:16, 1:1, 4:5
-- UI polish + shortcut hint bar
+## Run
 
-## Features overview
-
-- Multi-clip sequential playback
-- Timeline with ruler, zoom, split, delete
-- Text overlays (color, size, position)
-- CSS filters
-- Speed & volume control
-- Drag & drop upload
-- Dark CapCut-style UI
-
-## How to run
-
-Open `index.html` in Chrome / Edge / Firefox, or:
-
-```bash
-python -m http.server 8080
-```
-
-## Limitations
-
-- Export downloads original media (filters/text/transitions are preview-only)
-- No multi-track audio, advanced keyframes, or AI tools
-- True baked export needs FFmpeg.wasm
+Open `index.html` or `python -m http.server 8080`
 
 ## License
 
