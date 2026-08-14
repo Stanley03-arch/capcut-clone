@@ -1,21 +1,34 @@
-# CapCut Clone – Web Video Editor (v4 Advanced)
+# CapCut Clone – Web Video Editor (v5)
 
 Browser-based CapCut-inspired video editor.
 
-## v4 Advanced
+## Features
 
-- Undo / Redo (Ctrl+Z / Ctrl+Y)
-- Clip trim handles (drag edges)
-- Snap to edges, per-clip speed
-- Timeline markers
-- Save / Load project (Ctrl+S)
-- MediaRecorder WebM export
-- Pinch-zoom + touch drag reorder
-- Filters, text overlays, transitions
+### Editing
+- Multi-clip timeline, split, delete, reorder (drag / touch)
+- **Trim handles** on clip edges
+- **Undo / Redo** (Ctrl+Z / Ctrl+Y)
+- **Snap to edges**, markers, pinch-zoom
+- Per-clip **speed**, **opacity**, **fade in/out**
+- **Flip H/V**, **rotate 90°**, reverse flag
+
+### Effects & text
+- Filters + **intensity** slider
+- Transitions (fade / fade through black)
+- Text overlays with styles: basic, stroke, box, neon, shadow
+- **Stickers / emoji** (drag on preview)
+
+### Project
+- Save / Load (localStorage + JSON)
+- Export downloads source media (preview effects)
 
 ## Run
 
-Open `index.html` or `python -m http.server 8080`
+```bash
+python -m http.server 8080
+```
+
+Open `index.html` in Chrome / Edge / Firefox.
 
 ## License
 
