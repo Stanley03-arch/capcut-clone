@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CapCut Clone – Web Video Editor</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="4" width="20" height="16" rx="3" stroke="#00f5a0" stroke-width="2"/>
+          <path d="M10 9l5 3-5 3V9z" fill="#00f5a0"/>
+        </svg>
+        <span>CapCut Clone</span>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-export" class="btn primary">Export</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- Left Sidebar - Media & Tools -->
+      <aside class="sidebar left">
+        <div class="tabs">
+          <button class="tab active" data-tab="media">Media</button>
+          <button class="tab" data-tab="text">Text</button>
+          <button class="tab" data-tab="effects">Effects</button>
+        </div>
+
+        <div class="tab-content" id="tab-media">
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" accept="video/*,image/*" multiple hidden />
+            <div class="upload-icon">+</div>
+            <p>Drop media here or click to upload</p>
+            <span class="hint">MP4, WebM, MOV, images</span>
+          </div>
+          <div class="media-list" id="media-list"></div>
+        </div>
+
+        <div class="tab-content hidden" id="tab-text">
+          <div class="tool-group">
+            <label>Add Text Overlay</label>
+            <input type="text" id="text-input" placeholder="Enter text..." />
+            <div class="row">
+              <input type="color" id="text-color" value="#ffffff" title="Text color" />
+              <select id="text-size">
+                <option value="24">Small</option>
+                <option value="36" selected>Medium</option>
+                <option value="48">Large</option>
+                <option value="64">XL</option>
+              </select>
+            </div>
+            <button id="btn-add-text" class="btn secondary full">Add Text</button>
+          </div>
+          <div class="tool-group">
+            <label>Existing Overlays</label>
+            <div id="text-list" class="item-list"></div>
+          </div>
+        </div>
+
+        <div class="tab-content hidden" id="tab-effects">
+          <div class="tool-group">
+            <label>Filters</label>
+            <div class="filter-grid">
+              <button class="filter-btn active" data-filter="none">None</button>
+              <button class="filter-btn" data-filter="grayscale">B&W</button>
+              <button class="filter-btn" data-filter="sepia">Sepia</button>
+              <button class="filter-btn" data-filter="contrast">Contrast</button>
+              <button class="filter-btn" data-filter="brightness">Bright</button>
+              <button class="filter-btn" data-filter="blur">Blur</button>
+            </div>
+          </div>
+          <div class="tool-group">
+            <label>Playback Speed</label>
+            <input type="range" id="speed-slider" min="0.25" max="2" step="0.25" value="1" />
+            <span id="speed-value">1.0x</span>
+          </div>
+          <div class="tool-group">
+            <label>Volume</label>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" />
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center - Preview -->
+      <section class="preview-area">
+        <div class="preview-container" id="preview-container">
+          <video id="preview-video" playsinline></video>
+          <canvas id="overlay-canvas"></canvas>
+          <div id="no-media" class="no-media">
+            <p>Upload a video to get started</p>
+          </div>
+        </div>
+        <div class="playback-controls">
+          <button id="btn-play" class="icon-btn" title="Play/Pause">▶</button>
+          <span id="time-display">00:00 / 00:00</span>
+          <input type="range" id="seek-bar" min="0" max="100" value="0" step="0.1" />
+          <button id="btn-fullscreen" class="icon-btn" title="Fullscreen">⛶</button>
+        </div>
+      </section>
+
+      <!-- Right Sidebar - Properties -->
+      <aside class="sidebar right hidden-mobile">
+        <h3>Project</h3>
+        <div class="tool-group">
+          <label>Resolution</label>
+          <select id="resolution">
+            <option value="720">720p</option>
+            <option value="1080" selected>1080p</option>
+          </select>
+        </div>
+        <div class="tool-group">
+          <label>Aspect Ratio</label>
+          <select id="aspect">
+            <option value="16:9" selected>16:9</option>
+            <option value="9:16">9:16 (TikTok/Reels)</option>
+            <option value="1:1">1:1</option>
+          </select>
+        </div>
+        <div class="info-box">
+          <p><strong>Tip:</strong> This is a lightweight browser prototype. For full multi-track, transitions & AI features, a desktop app or heavier stack (FFmpeg.wasm + WebCodecs) would be needed.</p>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Timeline -->
+    <footer class="timeline-area">
+      <div class="timeline-toolbar">
+        <button id="btn-split" class="icon-btn" title="Split at playhead">✂</button>
+        <button id="btn-delete-clip" class="icon-btn" title="Delete selected">🗑</button>
+        <span class="timeline-label">Timeline</span>
+      </div>
+      <div class="timeline" id="timeline">
+        <div class="track" id="video-track">
+          <div class="track-label">V1</div>
+          <div class="track-content" id="clips-container"></div>
+        </div>
+        <div class="playhead" id="playhead"></div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
