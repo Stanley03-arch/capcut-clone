@@ -16,6 +16,7 @@ A lightweight browser-based video editor inspired by CapCut.
   - `F` – fullscreen
   - `[` `]` – move clip left / right
 - **Drag-and-drop reorder** – drag clips on the timeline (mouse + **touch**)
+- **Pinch-to-zoom** – pinch on the timeline (or Ctrl/Cmd + wheel) to zoom
 - **Clip reorder** – also via buttons / `[` `]` keys
 - **Transitions** – Fade / Fade through black between clips
 - **Video thumbnails** in the media list
