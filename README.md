@@ -1,26 +1,19 @@
-# CapCut Clone – Web Video Editor (v5)
+# CapCut Clone – Web Video Editor (v6)
 
-Browser-based CapCut-inspired video editor.
+Browser CapCut-style editor. Open `index.html` or run a local server.
 
-## Features
+## v6 features
 
-### Editing
-- Multi-clip timeline, split, delete, reorder (drag / touch)
-- **Trim handles** on clip edges
-- **Undo / Redo** (Ctrl+Z / Ctrl+Y)
-- **Snap to edges**, markers, pinch-zoom
-- Per-clip **speed**, **opacity**, **fade in/out**
-- **Flip H/V**, **rotate 90°**, reverse flag
+- **Audio / BGM** – import music, volume, loop, mute video under BGM, A1 track
+- **Color grade** – brightness, contrast, saturate, warmth
+- **Text animations** – fade, slide-up, typewriter, pop
+- **Freeze frame** – 1s hold at playhead
+- **Duplicate clip**
+- **Transitions** – fade, fade black, slide left/right, zoom
 
-### Effects & text
-- Filters + **intensity** slider
-- Transitions (fade / fade through black)
-- Text overlays with styles: basic, stroke, box, neon, shadow
-- **Stickers / emoji** (drag on preview)
+## Also includes (v1–v5)
 
-### Project
-- Save / Load (localStorage + JSON)
-- Export downloads source media (preview effects)
+Multi-clip timeline · trim · drag reorder · touch & pinch zoom · undo/redo · markers · speed · opacity · fade in/out · flip/rotate/reverse · filters + intensity · stickers · text styles · save/load
 
 ## Run
 
@@ -28,8 +21,8 @@ Browser-based CapCut-inspired video editor.
 python -m http.server 8080
 ```
 
-Open `index.html` in Chrome / Edge / Firefox.
+Open http://localhost:8080
 
 ## License
 
-MIT — not affiliated with ByteDance or CapCut.
+MIT — not affiliated with CapCut / ByteDance.
